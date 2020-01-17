@@ -993,7 +993,8 @@ void AudioPolicyManagerCustom::setForceUse(audio_policy_force_use_t usage,
     for (size_t i = mOutputs.size(); i > 0; i--) {
         sp<SwAudioOutputDescriptor> outputDesc = mOutputs.valueAt(i-1);
         DeviceVector newDevices = getNewOutputDevices(outputDesc, true /*fromCache*/);
-        if ((mEngine->getPhoneState() != AUDIO_MODE_IN_CALL) || (outputDesc != mPrimaryOutput)) {
+        if (outputDesc->isActive() && ((mEngine->getPhoneState() != AUDIO_MODE_IN_CALL) ||
+            (outputDesc != mPrimaryOutput))) {
             waitMs = setOutputDevices(outputDesc, newDevices, !newDevices.isEmpty(),
                                      delayMs);
 
@@ -1703,6 +1704,13 @@ audio_io_handle_t AudioPolicyManagerCustom::getOutputForDevices(
     if (((*flags & AUDIO_OUTPUT_FLAG_DIRECT) == 0) &&
             audio_is_linear_pcm(config->format) && config->sample_rate <= SAMPLE_RATE_HZ_MAX &&
             audio_channel_count_from_out_mask(channelMask) <= 2) {
+        goto non_direct_output;
+    }
+
+    if (property_get_bool("vendor.audio.pcm.direct.disable", false /* default_value */) &&
+                audio_is_linear_pcm(config->format)) {
+        ALOGD(":%s Force route mch pcm to deep buffer", __func__);
+        forced_deep = true;
         goto non_direct_output;
     }
 
